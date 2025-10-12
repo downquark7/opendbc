@@ -152,3 +152,60 @@ def create_lkas_hud_info_msg(packer, lkas_hud_info_msg, steer_hud_alert):
     values["HANDS_ON_WHEEL_WARNING"] = 1
 
   return packer.make_can_msg("PROPILOT_HUD_INFO_MSG", 0, values)
+
+
+def create_cruise_throttle_button(packer, car_fingerprint, cruise_throttle_msg, button_name: str, button_counter_offset: int):
+  if car_fingerprint in (CAR.NISSAN_LEAF, CAR.NISSAN_LEAF_IC):
+    values = {s: cruise_throttle_msg[s] for s in [
+      "GAS_PEDAL",
+      "GAS_PEDAL_INVERTED",
+      "unsure2",
+      "CRUISE_AVAILABLE",
+      "unsure1",
+      "PROPILOT_BUTTON",
+      "CANCEL_BUTTON",
+      "FOLLOW_DISTANCE_BUTTON",
+      "SET_BUTTON",
+      "RES_BUTTON",
+      "NO_BUTTON_PRESSED",
+      "unsure3",
+      "COUNTER",
+      "USER_BRAKE_PRESSED",
+      "unsure5",
+      "unsure6",
+      "unsure7",
+    ]}
+  else:
+    values = {s: cruise_throttle_msg[s] for s in [
+      "COUNTER",
+      "PROPILOT_BUTTON",
+      "CANCEL_BUTTON",
+      "GAS_PEDAL_INVERTED",
+      "SET_BUTTON",
+      "RES_BUTTON",
+      "FOLLOW_DISTANCE_BUTTON",
+      "NO_BUTTON_PRESSED",
+      "GAS_PEDAL",
+      "USER_BRAKE_PRESSED",
+      "USER_BRAKE_PRESSED_INVERTED",
+      "NEW_SIGNAL_2",
+      "GAS_PRESSED_INVERTED",
+      "unsure1",
+      "unsure2",
+      "unsure3",
+    ]}
+  can_bus = 1 if car_fingerprint == CAR.NISSAN_ALTIMA else 2
+
+  # set counter with Nissan "magic" button offset (2-bit counter)
+  values["COUNTER"] = (values["COUNTER"] + button_counter_offset) % 4
+
+  # clear all buttons, then set the target one
+  values["NO_BUTTON_PRESSED"] = 0
+  values["PROPILOT_BUTTON"] = 0
+  values["CANCEL_BUTTON"] = 0
+  values["SET_BUTTON"] = 0
+  values["RES_BUTTON"] = 0
+  values["FOLLOW_DISTANCE_BUTTON"] = 0
+  values[button_name] = 1
+
+  return packer.make_can_msg("CRUISE_THROTTLE", can_bus, values)
