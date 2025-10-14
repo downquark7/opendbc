@@ -103,9 +103,9 @@ class TestNissanSafetyAltEpsBus(TestNissanSafety):
 class TestNissanLeafSafety(TestNissanSafety):
 
   # Leaf uses different TX whitelist and button bus
-  TX_MSGS = [[0x169, 0], [0x2b1, 0], [0x4cc, 0], [0x239, 0], [0x280, 2]]
-  RELAY_MALFUNCTION_ADDRS = {0: (0x169, 0x2b1, 0x4cc), 2: (0x280,)}
-  FWD_BLACKLISTED_ADDRS = {0: [0x280], 2: [0x169, 0x2b1, 0x4cc]}
+  TX_MSGS = [[0x169, 0], [0x2b1, 0], [0x4cc, 0], [0x239, 2], [0x280, 2]]
+  RELAY_MALFUNCTION_ADDRS = {0: (0x169, 0x2b1, 0x4cc), 2: ()}
+  FWD_BLACKLISTED_ADDRS = {0: [], 2: [0x169, 0x2b1, 0x4cc]}
 
   def setUp(self):
     self.packer = CANPackerPanda("nissan_leaf_2018_generated")
@@ -131,7 +131,7 @@ class TestNissanLeafSafety(TestNissanSafety):
     values = {"CANCEL_BUTTON": cancel, "PROPILOT_BUTTON": propilot,
               "FOLLOW_DISTANCE_BUTTON": flw_dist, "SET_BUTTON": _set,
               "RES_BUTTON": res, "NO_BUTTON_PRESSED": no_button}
-    return self.packer.make_can_msg_panda("CRUISE_THROTTLE", 0, values)
+    return self.packer.make_can_msg_panda("CRUISE_THROTTLE", 2, values)
 
   def test_acc_buttons(self):
     # On Leaf, allow cancel, set, and res; block propilot and follow distance

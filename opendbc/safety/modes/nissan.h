@@ -114,9 +114,9 @@ static bool nissan_tx_hook(const CANPacket_t *msg) {
     // Block PROPILOT, FOLLOW_DISTANCE, and NO_BUTTON_PRESSED
     violation |= ((msg->data[1] & 0x25U) > 0U);
   }
-  // Leaf buttons (0x239) share the same semantics, but are located in data[3]
+  // Leaf buttons (0x239) share the same semantics, but are located in data[3] (little-endian)
   if (msg->addr == 0x239U) {
-    // Block PROPILOT, FOLLOW_DISTANCE, and NO_BUTTON_PRESSED
+    // Block PROPILOT (0x01), FOLLOW_DISTANCE (0x04), and NO_BUTTON_PRESSED (0x20)
     violation |= ((msg->data[3] & 0x25U) > 0U);
   }
 
@@ -141,8 +141,8 @@ static safety_config nissan_init(uint16_t param) {
     {0x169, 0, 8, .check_relay = true},   // LKAS
     {0x2b1, 0, 8, .check_relay = true},   // PROPILOT_HUD
     {0x4cc, 0, 8, .check_relay = true},   // PROPILOT_HUD_INFO_MSG
-    {0x239, 0, 8, .check_relay = false},  // CRUISE_THROTTLE (Leaf)
-    {0x280, 2, 8, .check_relay = true}    // CANCEL_MSG (Leaf)
+    {0x239, 2, 8, .check_relay = false},  // CRUISE_THROTTLE (Leaf)
+    {0x280, 2, 8, .check_relay = false}    // CANCEL_MSG (Leaf)
   };
 
   // Signals duplicated below due to the fact that these messages can come in on either CAN bus, depending on car model.
