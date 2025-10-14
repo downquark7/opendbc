@@ -34,7 +34,7 @@ class IntelligentCruiseButtonManagementInterface(IntelligentCruiseButtonManageme
     self.last_button_frame = last_button_frame
     self.cc_counter = CS.cruise_throttle_msg["COUNTER"]
 
-    if self.ICBM.sendButton != SendButtonState.none and self.cc_counter == self.last_cc_counter: # Only send in between stock car frames
+    if self.ICBM.sendButton != SendButtonState.none and self.cc_counter != self.last_cc_counter: # Only send in between stock car frames
         send_button = BUTTONS[self.ICBM.sendButton]
 
         if (self.frame - self.last_button_frame) * DT_CTRL >= 0.08:
