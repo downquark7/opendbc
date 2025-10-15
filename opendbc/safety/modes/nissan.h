@@ -111,13 +111,13 @@ static bool nissan_tx_hook(const CANPacket_t *msg) {
   // ACC button checks
   // Allow only CANCEL, SET, and RES buttons to be sent on X-Trail/Altima (0x20B)
   if (msg->addr == 0x20bU) {
-    // Block PROPILOT, FOLLOW_DISTANCE, and NO_BUTTON_PRESSED
-    violation |= ((msg->data[1] & 0x25U) > 0U);
+    // Block PROPILOT, FOLLOW_DISTANCE
+    violation |= ((msg->data[1] & 0x05U) > 0U);
   }
   // Leaf buttons (0x239) share the same semantics, but are located in data[3] (little-endian)
   if (msg->addr == 0x239U) {
-    // Block PROPILOT (0x01), FOLLOW_DISTANCE (0x04), and NO_BUTTON_PRESSED (0x20)
-    violation |= ((msg->data[3] & 0x25U) > 0U);
+    // Block PROPILOT (0x01), FOLLOW_DISTANCE (0x04)
+    violation |= ((msg->data[3] & 0x05U) > 0U);
   }
 
   if (violation) {

@@ -76,7 +76,7 @@ class TestNissanSafety(common.PandaCarSafetyTest, common.AngleSteeringSafetyTest
       ("flw_dist", False),
       ("_set", True),
       ("res", True),
-      (None, False),
+      (None, True),
     ]
     for controls_allowed in (True, False):
       for btn, should_tx in btns:
@@ -141,7 +141,7 @@ class TestNissanLeafSafety(TestNissanSafety):
       ("flw_dist", False),
       ("_set", True),
       ("res", True),
-      (None, False),
+      (None, True),
     ]
     for controls_allowed in (True, False):
       for btn, should_tx in btns:

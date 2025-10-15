@@ -37,15 +37,20 @@ class IntelligentCruiseButtonManagementInterface(IntelligentCruiseButtonManageme
     if self.ICBM.sendButton != SendButtonState.none:
         send_button = BUTTONS[self.ICBM.sendButton]
 
-        if (self.frame - self.last_button_frame) * DT_CTRL >= 0.08:
+        if (self.frame - self.last_button_frame) * DT_CTRL >= 0.13:
 
           if self.cc_counter == self.last_cc_counter:
             can_sends.append(nissancan.create_cruise_throttle_button(packer, self.CP.carFingerprint, CS.cruise_throttle_msg, send_button, 1))
           else:
             can_sends.append(nissancan.create_cruise_throttle_button(packer, self.CP.carFingerprint, CS.cruise_throttle_msg, send_button, 0))
 
-          if (self.frame - self.last_button_frame) * DT_CTRL >= 0.15:
+          if (self.frame - self.last_button_frame) * DT_CTRL >= 0.2:
             self.last_button_frame = self.frame
+        else: # Maybe this will sync the car and the panda better
+          if self.cc_counter == self.last_cc_counter:
+            can_sends.append(nissancan.create_cruise_throttle_button(packer, self.CP.carFingerprint, CS.cruise_throttle_msg, "NO_BUTTON_PRESSED", 1))
+          else:
+            can_sends.append(nissancan.create_cruise_throttle_button(packer, self.CP.carFingerprint, CS.cruise_throttle_msg, "NO_BUTTON_PRESSED", 0))
 
     self.last_cc_counter = self.cc_counter
     return can_sends
