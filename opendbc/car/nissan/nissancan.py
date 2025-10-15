@@ -156,10 +156,9 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
   values["COUNTER"] = (frame // 2) % 4
 
   # If button_name is None, we just forward the message with the generated counter value
-  if button_name is not None:
+  if (button_name is not None) and (not values["CANCEL_BUTTON"]):
     values["NO_BUTTON_PRESSED"] = 0
     values["PROPILOT_BUTTON"] = 0
-    values["CANCEL_BUTTON"] = 0
     values["SET_BUTTON"] = 0
     values["RES_BUTTON"] = 0
     values["FOLLOW_DISTANCE_BUTTON"] = 0
