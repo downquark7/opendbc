@@ -134,8 +134,8 @@ static safety_config nissan_init(uint16_t param) {
 
   static const CanMsg NISSAN_TX_MSGS_ALTIMA[] = {
     {0x169, 0, 8, .check_relay = true},   // LKAS
-    {0x2b1, 0, 8, .check_relay = false},  // PROPILOT_HUD (not TXed on Altima)
-    {0x4cc, 0, 8, .check_relay = false},  // PROPILOT_HUD_INFO_MSG (not TXed on Altima)
+    {0x2b1, 0, 8, .check_relay = true},  // PROPILOT_HUD
+    {0x4cc, 0, 8, .check_relay = true},  // PROPILOT_HUD_INFO_MSG
     {0x20b, 1, 6, .check_relay = false}   // CRUISE_THROTTLE (Altima on non-relayed bus)
   };
 
