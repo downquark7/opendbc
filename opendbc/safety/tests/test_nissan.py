@@ -13,8 +13,8 @@ class TestNissanSafety(common.PandaCarSafetyTest, common.AngleSteeringSafetyTest
 
   TX_MSGS = [[0x169, 0], [0x2b1, 0], [0x4cc, 0], [0x20b, 2]]
   GAS_PRESSED_THRESHOLD = 3
-  RELAY_MALFUNCTION_ADDRS = {0: (0x169, 0x2b1, 0x4cc), 2: ()}
-  FWD_BLACKLISTED_ADDRS = {0: [], 2: [0x169, 0x2b1, 0x4cc]}
+  RELAY_MALFUNCTION_ADDRS = {0: (0x169, 0x2b1, 0x4cc), 2: (0x20b,)}
+  FWD_BLACKLISTED_ADDRS = {0: [0x20b], 2: [0x169, 0x2b1, 0x4cc]}
 
   EPS_BUS = 0
   CRUISE_BUS = 2
@@ -67,13 +67,13 @@ class TestNissanSafety(common.PandaCarSafetyTest, common.AngleSteeringSafetyTest
     values = {"CANCEL_BUTTON": cancel, "PROPILOT_BUTTON": propilot,
               "FOLLOW_DISTANCE_BUTTON": flw_dist, "SET_BUTTON": _set,
               "RES_BUTTON": res, "NO_BUTTON_PRESSED": no_button}
-    return self.packer.make_can_msg_panda("CRUISE_THROTTLE", 2, values)
+    return self.packer.make_can_msg_panda("CRUISE_THROTTLE", self.CRUISE_BUS, values)
 
   def test_acc_buttons(self):
     btns = [
       ("cancel", True),
-      ("propilot", False),
-      ("flw_dist", False),
+      ("propilot", True),
+      ("flw_dist", True),
       ("_set", True),
       ("res", True),
       (None, True),
@@ -92,6 +92,10 @@ class TestNissanSafetyAltEpsBus(TestNissanSafety):
   EPS_BUS = 1
   CRUISE_BUS = 1
   ACC_MAIN_BUS = 2
+  TX_MSGS = [[0x169, 0], [0x2b1, 0], [0x4cc, 0], [0x20b, 2]]
+  # On Altima, CRUISE_THROTTLE (0x20b) is on a non-relayed bus, so it's not relay-checked
+  RELAY_MALFUNCTION_ADDRS = {0: (0x169, 0x2b1, 0x4cc)}
+  FWD_BLACKLISTED_ADDRS = {2: [0x169, 0x2b1, 0x4cc]}
 
   def setUp(self):
     self.packer = CANPackerPanda("nissan_x_trail_2017_generated")
@@ -102,10 +106,9 @@ class TestNissanSafetyAltEpsBus(TestNissanSafety):
 
 class TestNissanLeafSafety(TestNissanSafety):
 
-  # Leaf uses different TX whitelist and button bus
-  TX_MSGS = [[0x169, 0], [0x2b1, 0], [0x4cc, 0], [0x239, 2], [0x280, 2]]
-  RELAY_MALFUNCTION_ADDRS = {0: (0x169, 0x2b1, 0x4cc), 2: ()}
-  FWD_BLACKLISTED_ADDRS = {0: [], 2: [0x169, 0x2b1, 0x4cc]}
+  TX_MSGS = [[0x169, 0], [0x2b1, 0], [0x4cc, 0], [0x239, 2]]
+  RELAY_MALFUNCTION_ADDRS = {0: (0x169, 0x2b1, 0x4cc), 2: (0x239,)}
+  FWD_BLACKLISTED_ADDRS = {0: [0x239], 2: [0x169, 0x2b1, 0x4cc]}
 
   def setUp(self):
     self.packer = CANPackerPanda("nissan_leaf_2018_generated")
@@ -125,30 +128,6 @@ class TestNissanLeafSafety(TestNissanSafety):
   def _acc_state_msg(self, main_on):
     values = {"CRUISE_AVAILABLE": main_on}
     return self.packer.make_can_msg_panda("CRUISE_THROTTLE", 0, values)
-
-  def _acc_button_cmd(self, cancel=0, propilot=0, flw_dist=0, _set=0, res=0):
-    no_button = not any([cancel, propilot, flw_dist, _set, res])
-    values = {"CANCEL_BUTTON": cancel, "PROPILOT_BUTTON": propilot,
-              "FOLLOW_DISTANCE_BUTTON": flw_dist, "SET_BUTTON": _set,
-              "RES_BUTTON": res, "NO_BUTTON_PRESSED": no_button}
-    return self.packer.make_can_msg_panda("CRUISE_THROTTLE", 2, values)
-
-  def test_acc_buttons(self):
-    # On Leaf, allow cancel, set, and res; block propilot and follow distance
-    btns = [
-      ("cancel", True),
-      ("propilot", False),
-      ("flw_dist", False),
-      ("_set", True),
-      ("res", True),
-      (None, True),
-    ]
-    for controls_allowed in (True, False):
-      for btn, should_tx in btns:
-        self.safety.set_controls_allowed(controls_allowed)
-        args = {} if btn is None else {btn: 1}
-        tx = self._tx(self._acc_button_cmd(**args))
-        self.assertEqual(tx, should_tx)
 
 
 if __name__ == "__main__":

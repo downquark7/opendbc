@@ -108,18 +108,6 @@ static bool nissan_tx_hook(const CANPacket_t *msg) {
     }
   }
 
-  // ACC button checks
-  // Allow only CANCEL, SET, and RES buttons to be sent on X-Trail/Altima (0x20B)
-  if (msg->addr == 0x20bU) {
-    // Block PROPILOT, FOLLOW_DISTANCE
-    violation |= ((msg->data[1] & 0x05U) > 0U);
-  }
-  // Leaf buttons (0x239) share the same semantics, but are located in data[3] (little-endian)
-  if (msg->addr == 0x239U) {
-    // Block PROPILOT (0x01), FOLLOW_DISTANCE (0x04)
-    violation |= ((msg->data[3] & 0x05U) > 0U);
-  }
-
   if (violation) {
     tx = false;
   }
@@ -129,20 +117,26 @@ static bool nissan_tx_hook(const CANPacket_t *msg) {
 
 
 static safety_config nissan_init(uint16_t param) {
-  static const CanMsg NISSAN_TX_MSGS[] = {
-    {0x169, 0, 8, .check_relay = true},   // LKAS
-    {0x2b1, 0, 8, .check_relay = true},   // PROPILOT_HUD
-    {0x4cc, 0, 8, .check_relay = true},   // PROPILOT_HUD_INFO_MSG
-    {0x20b, 2, 6, .check_relay = false},  // CRUISE_THROTTLE (X-Trail)
-    {0x20b, 1, 6, .check_relay = false}   // CRUISE_THROTTLE (Altima)
-  };
 
   static const CanMsg NISSAN_TX_MSGS_LEAF[] = {
     {0x169, 0, 8, .check_relay = true},   // LKAS
     {0x2b1, 0, 8, .check_relay = true},   // PROPILOT_HUD
     {0x4cc, 0, 8, .check_relay = true},   // PROPILOT_HUD_INFO_MSG
-    {0x239, 2, 8, .check_relay = false},  // CRUISE_THROTTLE (Leaf)
-    {0x280, 2, 8, .check_relay = false}    // CANCEL_MSG (Leaf)
+    {0x239, 2, 8, .check_relay = true}    // CRUISE_THROTTLE (Leaf)
+  };
+
+  static const CanMsg NISSAN_TX_MSGS_XTRAIL[] = {
+    {0x169, 0, 8, .check_relay = true},   // LKAS
+    {0x2b1, 0, 8, .check_relay = true},   // PROPILOT_HUD
+    {0x4cc, 0, 8, .check_relay = true},   // PROPILOT_HUD_INFO_MSG
+    {0x20b, 2, 6, .check_relay = true}  // CRUISE_THROTTLE (X-Trail)
+  };
+
+  static const CanMsg NISSAN_TX_MSGS_ALTIMA[] = {
+    {0x169, 0, 8, .check_relay = true},   // LKAS
+    {0x2b1, 0, 8, .check_relay = false},  // PROPILOT_HUD (not TXed on Altima)
+    {0x4cc, 0, 8, .check_relay = false},  // PROPILOT_HUD_INFO_MSG (not TXed on Altima)
+    {0x20b, 1, 6, .check_relay = false}   // CRUISE_THROTTLE (Altima on non-relayed bus)
   };
 
   // Signals duplicated below due to the fact that these messages can come in on either CAN bus, depending on car model.
@@ -173,10 +167,10 @@ static safety_config nissan_init(uint16_t param) {
     SET_TX_MSGS(NISSAN_TX_MSGS_LEAF, ret);
     SET_RX_CHECKS(nissan_leaf_rx_checks, ret);
   } else if (nissan_alt_eps) {
-    SET_TX_MSGS(NISSAN_TX_MSGS, ret);
+    SET_TX_MSGS(NISSAN_TX_MSGS_ALTIMA, ret);
     SET_RX_CHECKS(nissan_alt_eps_rx_checks, ret);
   } else {
-    SET_TX_MSGS(NISSAN_TX_MSGS, ret);
+    SET_TX_MSGS(NISSAN_TX_MSGS_XTRAIL, ret);
     SET_RX_CHECKS(nissan_rx_checks, ret);
   }
 

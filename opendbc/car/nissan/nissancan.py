@@ -21,50 +21,6 @@ def create_steering_control(packer, apply_torque, frame, steer_on, lkas_max_torq
   return packer.make_can_msg("LKAS", 0, values)
 
 
-def create_acc_cancel_cmd(packer, car_fingerprint, cruise_throttle_msg):
-  values = {s: cruise_throttle_msg[s] for s in [
-    "COUNTER",
-    "PROPILOT_BUTTON",
-    "CANCEL_BUTTON",
-    "GAS_PEDAL_INVERTED",
-    "SET_BUTTON",
-    "RES_BUTTON",
-    "FOLLOW_DISTANCE_BUTTON",
-    "NO_BUTTON_PRESSED",
-    "GAS_PEDAL",
-    "USER_BRAKE_PRESSED",
-    "NEW_SIGNAL_2",
-    "GAS_PRESSED_INVERTED",
-    "unsure1",
-    "unsure2",
-    "unsure3",
-  ]}
-  can_bus = 1 if car_fingerprint == CAR.NISSAN_ALTIMA else 2
-
-  values["CANCEL_BUTTON"] = 1
-  values["NO_BUTTON_PRESSED"] = 0
-  values["PROPILOT_BUTTON"] = 0
-  values["SET_BUTTON"] = 0
-  values["RES_BUTTON"] = 0
-  values["FOLLOW_DISTANCE_BUTTON"] = 0
-
-  return packer.make_can_msg("CRUISE_THROTTLE", can_bus, values)
-
-
-def create_cancel_msg(packer, cancel_msg, cruise_cancel):
-  values = {s: cancel_msg[s] for s in [
-    "CANCEL_SEATBELT",
-    "NEW_SIGNAL_1",
-    "NEW_SIGNAL_2",
-    "NEW_SIGNAL_3",
-  ]}
-
-  if cruise_cancel:
-    values["CANCEL_SEATBELT"] = 1
-
-  return packer.make_can_msg("CANCEL_MSG", 2, values)
-
-
 def create_lkas_hud_msg(packer, lkas_hud_msg, enabled, left_line, right_line, left_lane_depart, right_lane_depart):
   values = {s: lkas_hud_msg[s] for s in [
     "LARGE_WARNING_FLASHING",
@@ -154,7 +110,7 @@ def create_lkas_hud_info_msg(packer, lkas_hud_info_msg, steer_hud_alert):
   return packer.make_can_msg("PROPILOT_HUD_INFO_MSG", 0, values)
 
 
-def create_cruise_throttle_button(packer, car_fingerprint, cruise_throttle_msg, button_name: str, button_counter_offset: int):
+def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, frame: int, button_name=None):
   if car_fingerprint in (CAR.NISSAN_LEAF, CAR.NISSAN_LEAF_IC):
     values = {s: cruise_throttle_msg[s] for s in [
       "GAS_PEDAL",
@@ -196,16 +152,17 @@ def create_cruise_throttle_button(packer, car_fingerprint, cruise_throttle_msg, 
     ]}
   can_bus = 1 if car_fingerprint == CAR.NISSAN_ALTIMA else 2
 
-  # set counter with Nissan "magic" button offset (2-bit counter)
-  values["COUNTER"] = (values["COUNTER"] + button_counter_offset) % 4
+  # Use 100hz frame counter to generate a counter that increments at 50hz
+  values["COUNTER"] = (frame // 2) % 4
 
-  # clear all buttons, then set the target one
-  values["NO_BUTTON_PRESSED"] = 0
-  values["PROPILOT_BUTTON"] = 0
-  values["CANCEL_BUTTON"] = 0
-  values["SET_BUTTON"] = 0
-  values["RES_BUTTON"] = 0
-  values["FOLLOW_DISTANCE_BUTTON"] = 0
-  values[button_name] = 1
+  # If button_name is None, we just forward the message with the generated counter value
+  if button_name is not None:
+    values["NO_BUTTON_PRESSED"] = 0
+    values["PROPILOT_BUTTON"] = 0
+    values["CANCEL_BUTTON"] = 0
+    values["SET_BUTTON"] = 0
+    values["RES_BUTTON"] = 0
+    values["FOLLOW_DISTANCE_BUTTON"] = 0
+    values[button_name] = 1
 
   return packer.make_can_msg("CRUISE_THROTTLE", can_bus, values)
