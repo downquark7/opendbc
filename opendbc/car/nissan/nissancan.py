@@ -156,8 +156,8 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
   values["COUNTER"] = (frame // 2) % 4
 
   # If button_name is None, we just forward the message with the generated counter value
-  # If a manual button press is detected, we don't send other buttons
-  if (button_name is not None) and (not values["CANCEL_BUTTON"]) and (not values["SET_BUTTON"]) and (not values["RES_BUTTON"]):
+  # Ensure user cancel button presses are always sent to car
+  if (button_name is not None) and (not values["CANCEL_BUTTON"]):
     values["NO_BUTTON_PRESSED"] = 0
     values["PROPILOT_BUTTON"] = 0
     values["SET_BUTTON"] = 0
