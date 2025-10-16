@@ -23,10 +23,6 @@ class IntelligentCruiseButtonManagementInterface(IntelligentCruiseButtonManageme
   def __init__(self, CP, CP_SP):
     super().__init__(CP, CP_SP)
 
-    self.icbm_send_frequency = 7 #hz
-    self.icbm_send_interval = 1 / self.icbm_send_frequency #seconds
-    self.icbm_send_duration = 0.6 #seconds = 3 sends at 50hz
-
   def update(self, CS, CC_SP, packer, frame, last_button_frame) -> list[CanData]:
     can_sends: list[CanData] = []
     self.CC_SP = CC_SP
@@ -37,10 +33,10 @@ class IntelligentCruiseButtonManagementInterface(IntelligentCruiseButtonManageme
     if self.ICBM.sendButton != SendButtonState.none:
         send_button = BUTTONS[self.ICBM.sendButton]
 
-        if (self.frame - self.last_button_frame) * DT_CTRL >= self.icbm_send_interval - self.icbm_send_duration:
+        if (self.frame - self.last_button_frame) * DT_CTRL >= 0.06:
           can_sends.append(nissancan.create_cruise_throttle_msg(packer, self.CP.carFingerprint, CS.cruise_throttle_msg, self.frame, send_button))
 
-          if (self.frame - self.last_button_frame) * DT_CTRL >= self.icbm_send_interval:
+          if (self.frame - self.last_button_frame) * DT_CTRL >= 0.10:
             self.last_button_frame = self.frame
 
     return can_sends
