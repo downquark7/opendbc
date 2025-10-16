@@ -35,7 +35,7 @@ class CarInterface(CarInterfaceBase):
     if candidate in (CAR.NISSAN_LEAF, CAR.NISSAN_LEAF_IC):
       ret.safetyParam |= NissanSafetyFlagsSP.LEAF
 
-    # Enable Intelligent Cruise Button Management for Nissan
-    ret.intelligentCruiseButtonManagementAvailable = True
+    # Enable Intelligent Cruise Button Management for Nissan for all cars except the 2019 Altima platform
+    ret.intelligentCruiseButtonManagementAvailable = (candidate != CAR.NISSAN_ALTIMA)
 
     return ret
