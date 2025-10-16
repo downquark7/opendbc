@@ -64,11 +64,11 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
 
     # Handle cancel, icbm, and forward cruise throttle message here
     if self.frame % 2 == 0: # Message frequency is about 50Hz
+      icbm_msg = IntelligentCruiseButtonManagementInterface.update(self, CS, CC_SP, self.packer, self.frame, self.last_button_frame) # run the icbm update all the time so it can update its timer
       if pcm_cancel_cmd:
         can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, CS.car_fingerprint, CS.cruise_throttle_msg, self.frame, "CANCEL_BUTTON"))
       else:
-        icbm_msg = IntelligentCruiseButtonManagementInterface.update(self, CS, CC_SP, self.packer, self.frame, self.last_button_frame)
-        if not icbm_msg:
+        if not icbm_msg: # if icbm not sending, forward cruise_throttle msg as is
           icbm_msg = [nissancan.create_cruise_throttle_msg(self.packer, CS.car_fingerprint, CS.cruise_throttle_msg, self.frame)]
         can_sends.extend(icbm_msg)
 

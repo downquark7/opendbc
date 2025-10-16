@@ -39,4 +39,7 @@ class IntelligentCruiseButtonManagementInterface(IntelligentCruiseButtonManageme
           if (self.frame - self.last_button_frame) * DT_CTRL >= 0.15:
             self.last_button_frame = self.frame
 
+    else:
+      self.last_button_frame = self.frame
+
     return can_sends
