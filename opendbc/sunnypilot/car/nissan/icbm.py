@@ -33,10 +33,10 @@ class IntelligentCruiseButtonManagementInterface(IntelligentCruiseButtonManageme
     if self.ICBM.sendButton != SendButtonState.none:
         send_button = BUTTONS[self.ICBM.sendButton]
 
-        if (self.frame - self.last_button_frame) * DT_CTRL >= 0.06:
+        if (self.frame - self.last_button_frame) * DT_CTRL >= 0.11:
           can_sends.append(nissancan.create_cruise_throttle_msg(packer, self.CP.carFingerprint, CS.cruise_throttle_msg, self.frame, send_button))
 
-          if (self.frame - self.last_button_frame) * DT_CTRL >= 0.10:
+          if (self.frame - self.last_button_frame) * DT_CTRL >= 0.15:
             self.last_button_frame = self.frame
 
     return can_sends
