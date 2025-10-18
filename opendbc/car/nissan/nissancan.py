@@ -51,7 +51,7 @@ def create_acc_cancel_cmd(packer, car_fingerprint, cruise_throttle_msg):
   return packer.make_can_msg("CRUISE_THROTTLE", can_bus, values)
 
 
-def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, frame: int, button_name=None):
+def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, frame: int, button_name=None, unsure=False):
   if car_fingerprint in (CAR.NISSAN_LEAF, CAR.NISSAN_LEAF_IC):
     values = {s: cruise_throttle_msg[s] for s in [
       "GAS_PEDAL",
@@ -91,7 +91,8 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
       "unsure2",
       "unsure3",
     ]}
-    values["unsure1"] = (values["unsure1"] | 256) & ~512
+    if unsure:
+      values["unsure1"] = (values["unsure1"] | 256) & ~512
   can_bus = 1 if car_fingerprint == CAR.NISSAN_ALTIMA else 2
 
   # Use 100hz frame counter to generate a counter that increments at 50hz
