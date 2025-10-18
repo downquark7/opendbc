@@ -60,7 +60,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
       else:
         if icbm_msg:
           can_sends.extend(icbm_msg)
-        elif (self.frame - self.last_auto_resume_frame) * DT_CTRL >= 0.25 and (self.frame - self.last_auto_resume_frame) * DT_CTRL <= 0.26 and self.last_auto_resume_frame > self.last_non_auto_resume_frame:
+        elif (self.frame - self.last_non_auto_resume_frame) * DT_CTRL >= 0.25 and (self.frame - self.last_non_auto_resume_frame) * DT_CTRL <= 0.26 and self.last_auto_resume_frame > self.last_non_auto_resume_frame:
           can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, "RES_BUTTON"))
         else:
           can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame))
