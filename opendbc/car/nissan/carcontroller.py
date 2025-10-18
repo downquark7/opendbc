@@ -1,5 +1,5 @@
 from opendbc.can import CANPacker
-from opendbc.car import Bus, structs
+from opendbc.car import Bus, structs, DT_CTRL
 from opendbc.car.lateral import apply_std_steer_angle_limits
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.nissan import nissancan
@@ -16,6 +16,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.car_fingerprint = CP.carFingerprint
     self.apply_angle_last = 0
     self.packer = CANPacker(dbc_names[Bus.pt])
+    self.last_auto_resume_frame = -100
 
   def update(self, CC, CC_SP, CS, now_nanos):
     actuators = CC.actuators
@@ -58,11 +59,13 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
       else:
         if icbm_msg:
           can_sends.extend(icbm_msg)
-        elif CS.lkas_hud_info_msg["BOTTOM_MSG"] == 4:
+        elif (self.frame - self.last_auto_resume_frame) * DT_CTRL < 0.1:
           can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, "RES_BUTTON"))
         else:
           can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame))
 
+    if CS.lkas_hud_info_msg["BOTTOM_MSG"] == 4:
+      self.last_auto_resume_frame = self.frame
 
     # Below are the HUD messages. We copy the stock message and modify
     if self.CP.carFingerprint != CAR.NISSAN_ALTIMA:
