@@ -91,6 +91,7 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
       "unsure2",
       "unsure3",
     ]}
+    values["unsure1"] = (values["unsure1"] | 256) & ~512
   can_bus = 1 if car_fingerprint == CAR.NISSAN_ALTIMA else 2
 
   # Use 100hz frame counter to generate a counter that increments at 50hz
