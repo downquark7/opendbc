@@ -74,7 +74,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     if self.autoresume_state == 1 and (self.frame - self.last_auto_resume_frame) * DT_CTRL >= 0.25:
       self.autoresume_state = 2
 
-    if self.autoresume_state == 2 and (self.frame - self.last_auto_resume_frame) * DT_CTRL >= 0.26:
+    if self.autoresume_state == 2 and (self.frame - self.last_auto_resume_frame) * DT_CTRL >= 0.35:
       self.autoresume_state = 0
 
     # Below are the HUD messages. We copy the stock message and modify
