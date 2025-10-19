@@ -91,8 +91,6 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
       "unsure2",
       "unsure3",
     ]}
-    # cast to int to avoid bitwise operations on floats from default messages
-    values["unsure1"] = (int(values["unsure1"]) | 256) & ~512
   can_bus = 1 if car_fingerprint == CAR.NISSAN_ALTIMA else 2
 
   # Use 100hz frame counter to generate a counter that increments at 50hz

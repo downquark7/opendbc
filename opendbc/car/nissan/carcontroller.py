@@ -83,7 +83,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         can_sends.append(nissancan.create_lkas_hud_msg(self.packer, CS.lkas_hud_msg, CC.enabled, hud_control.leftLaneVisible, hud_control.rightLaneVisible,
                                                        hud_control.leftLaneDepart, hud_control.rightLaneDepart))
 
-      if self.frame % 50 == 0:
+      if self.frame % 49 == 0:
         can_sends.append(nissancan.create_lkas_hud_info_msg(
           self.packer, CS.lkas_hud_info_msg, steer_hud_alert
         ))
