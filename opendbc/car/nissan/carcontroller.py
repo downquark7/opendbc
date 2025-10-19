@@ -67,7 +67,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     # state 0: wait for hud;
     # state 1: wait 0.25 until button
     # state 2: send button for 0.1s
-    if self.autoresume_state == 0 and CS.lkas_hud_info_msg["BOTTOM_MSG"] == 4:
+    if self.CP.carFingerprint != CAR.NISSAN_ALTIMA and self.autoresume_state == 0 and CS.lkas_hud_info_msg["BOTTOM_MSG"] == 4:
       self.last_auto_resume_frame = self.frame
       self.autoresume_state = 1
 
