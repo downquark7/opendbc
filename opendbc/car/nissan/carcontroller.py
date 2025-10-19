@@ -16,7 +16,6 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.car_fingerprint = CP.carFingerprint
     self.apply_angle_last = 0
     self.packer = CANPacker(dbc_names[Bus.pt])
-    self.autoresume_state = 0
 
   def update(self, CC, CC_SP, CS, now_nanos):
     actuators = CC.actuators
@@ -59,23 +58,10 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
       else:
         if icbm_msg:
           can_sends.extend(icbm_msg)
-        elif self.autoresume_state == 2:
+        elif CS.lkas_hud_info_msg["BOTTOM_MSG"] == 4:
           can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, "RES_BUTTON"))
         else:
           can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame))
-
-    # state 0: wait for hud;
-    # state 1: wait 0.25 until button
-    # state 2: send button for 0.1s
-    if self.CP.carFingerprint != CAR.NISSAN_ALTIMA and self.autoresume_state == 0 and CS.lkas_hud_info_msg["BOTTOM_MSG"] == 4:
-      self.last_auto_resume_frame = self.frame
-      self.autoresume_state = 1
-
-    if self.autoresume_state == 1 and (self.frame - self.last_auto_resume_frame) * DT_CTRL >= 1:
-      self.autoresume_state = 2
-
-    if self.autoresume_state == 2 and (self.frame - self.last_auto_resume_frame) * DT_CTRL >= 1.2:
-      self.autoresume_state = 0
 
     # Below are the HUD messages. We copy the stock message and modify
     if self.CP.carFingerprint != CAR.NISSAN_ALTIMA:
