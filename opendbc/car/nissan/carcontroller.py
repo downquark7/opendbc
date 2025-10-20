@@ -16,6 +16,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.car_fingerprint = CP.carFingerprint
     self.apply_angle_last = 0
     self.packer = CANPacker(dbc_names[Bus.pt])
+    self.last_autoresume_frame = 0
 
   def update(self, CC, CC_SP, CS, now_nanos):
     actuators = CC.actuators
@@ -59,6 +60,9 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
         if icbm_msg:
           can_sends.extend(icbm_msg)
         elif CS.lkas_hud_info_msg["BOTTOM_MSG"] == 4:
+          can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, "RES_BUTTON"))
+          self.last_autoresume_frame = self.frame
+        elif (self.frame - self.last_autoresume_frame) * DT_CTRL < 4 and not CC.cruiseControl.enabled:
           can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, "RES_BUTTON"))
         else:
           can_sends.append(nissancan.create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame))
