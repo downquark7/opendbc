@@ -16,7 +16,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     self.car_fingerprint = CP.carFingerprint
     self.apply_angle_last = 0
     self.packer = CANPacker(dbc_names[Bus.pt])
-    self.last_autoresume_frame = 0
+    self.last_autoresume_frame = -10000
 
   def update(self, CC, CC_SP, CS, now_nanos):
     actuators = CC.actuators
