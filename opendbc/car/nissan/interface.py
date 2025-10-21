@@ -24,7 +24,7 @@ class CarInterface(CarInterfaceBase):
     ret.radarUnavailable = True
 
     if candidate == CAR.NISSAN_ALTIMA:
-      # Altima has EPS on C-CAN unlike the others that have it on V-CAN
+      # Altima (2019-20) has EPS on C-CAN unlike the others that have it on V-CAN
       ret.safetyConfigs[0].safetyParam |= NissanSafetyFlags.ALT_EPS_BUS.value
 
     return ret

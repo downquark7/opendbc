@@ -2648,6 +2648,16 @@
     ],
     "package": "ProPILOT Assist"
   },
+  "Nissan Altima 2024": {
+    "platform": "NISSAN_ALTIMA_2024",
+    "make": "Nissan",
+    "brand": "nissan",
+    "model": "Altima",
+    "year": [
+      "2024"
+    ],
+    "package": "ProPILOT Assist"
+  },
   "Nissan Leaf 2018-23": {
     "platform": "NISSAN_LEAF",
     "make": "Nissan",

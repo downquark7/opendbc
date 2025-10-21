@@ -75,6 +75,11 @@ class CAR(Platforms):
     [NissanCarDocs("Nissan Altima 2019-20", car_parts=CarParts.common([CarHarness.nissan_b]))],
     NissanCarSpecs(mass=1492, wheelbase=2.824)
   )
+  NISSAN_ALTIMA_2024 = NissanPlatformConfig(
+    [NissanCarDocs("Nissan Altima 2024", car_parts=CarParts.common([CarHarness.nissan_a]))],
+    NissanCarSpecs(mass=1492, wheelbase=2.824),
+    {Bus.pt: 'nissan_altima_2024'},
+  )
 
 
 DBC = CAR.create_dbc_map()
