@@ -94,8 +94,9 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
 
   can_bus = 1 if car_fingerprint == CAR.NISSAN_ALTIMA else 2
 
-  # Use 100hz frame counter to generate a counter that increments at 50hz
-  values["COUNTER"] = (frame // 2) % 4
+  # # Use 100hz frame counter to generate a counter that increments at 50hz
+  # values["COUNTER"] = (frame // 2) % 4
+  # don't need to do this if using the cars counter to decide when to send
 
   # If button_name is None, we just forward the message with the generated counter value
   # Ensure user cancel button presses are always sent to car
