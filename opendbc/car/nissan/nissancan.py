@@ -92,6 +92,7 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
       "unsure3",
     ]}
     values["USER_BRAKE_PRESSED"] = not values["USER_BRAKE_PRESSED_INVERTED"]
+    values["unsure1"] = 396
 
   can_bus = 1 if car_fingerprint == CAR.NISSAN_ALTIMA else 2
 
