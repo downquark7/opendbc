@@ -91,6 +91,7 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
       "unsure2",
       "unsure3",
     ]}
+    values["USER_BRAKE_PRESSED"] = not values["USER_BRAKE_PRESSED_INVERTED"]
 
   can_bus = 1 if car_fingerprint == CAR.NISSAN_ALTIMA else 2
 
@@ -99,7 +100,7 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
 
   # If button_name is None, we just forward the message with the generated counter value
   # Ensure user cancel button presses are always sent to car
-  if (button_name is not None) and (not values["CANCEL_BUTTON"]):
+  if (button_name is not None) and (values["NO_BUTTON_PRESSED"]):
     values["NO_BUTTON_PRESSED"] = 0
     values["PROPILOT_BUTTON"] = 0
     values["SET_BUTTON"] = 0
