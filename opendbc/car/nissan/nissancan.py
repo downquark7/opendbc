@@ -51,6 +51,19 @@ def create_acc_cancel_cmd(packer, car_fingerprint, cruise_throttle_msg):
   return packer.make_can_msg("CRUISE_THROTTLE", can_bus, values)
 
 
+def create_cancel_msg(packer, cancel_msg, cruise_cancel):
+  values = {s: cancel_msg[s] for s in [
+    "CANCEL_SEATBELT",
+    "NEW_SIGNAL_1",
+    "NEW_SIGNAL_2",
+    "NEW_SIGNAL_3",
+  ]}
+
+  if cruise_cancel:
+    values["CANCEL_SEATBELT"] = 1
+
+  return packer.make_can_msg("CANCEL_MSG", 2, values)
+
 def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, frame: int, button_name=None):
   if car_fingerprint in (CAR.NISSAN_LEAF, CAR.NISSAN_LEAF_IC):
     values = {s: cruise_throttle_msg[s] for s in [
@@ -108,7 +121,6 @@ def create_cruise_throttle_msg(packer, car_fingerprint, cruise_throttle_msg, fra
     values[button_name] = 1
 
   return packer.make_can_msg("CRUISE_THROTTLE", can_bus, values)
-
 
 def create_lkas_hud_msg(packer, lkas_hud_msg, enabled, left_line, right_line, left_lane_depart, right_lane_depart):
   values = {s: lkas_hud_msg[s] for s in [
