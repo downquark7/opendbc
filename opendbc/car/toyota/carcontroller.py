@@ -33,6 +33,22 @@ MAX_STEER_RATE_FRAMES = 17  # tx control frames needed before torque can be cut
 MAX_USER_TORQUE = 500
 
 
+class BlendPhase:
+  """Phases of the blended LTA/LKAS arbitration state machine.
+
+  Panda safety enforces that only one steering interface actuates at a time, and that a
+  handoff is preceded by a zero-actuation message from the releasing interface. The
+  wind-down/release phases below sequence the handoffs to respect that, and to avoid
+  torque discontinuities: the releasing interface always ramps its torque to (near) zero
+  before the other interface starts ramping up from zero.
+  """
+  LKAS = 0           # torque interface actuates, LTA request off, angle cmd tracks measured angle
+  LTA = 1            # angle interface actuates, LKAS torque zero
+  LTA_WINDDOWN = 2   # LTA still requested with TORQUE_WIND_DOWN=0: EPS ramps its torque out
+  LTA_RELEASE = 3    # one LTA frame with STEER_REQUEST=0 before LKAS may actuate
+  LKAS_WINDDOWN = 4  # LKAS torque ramps to zero before handing back to LTA
+
+
 def get_long_tune(CP, params):
   if CP.carFingerprint in TSS2_CAR:
     kiBP = [2., 5.]
@@ -58,6 +74,15 @@ class CarController(CarControllerBase):
     self.steer_rate_counter = 0
     self.distance_button = 0
 
+    # *** blended LTA/LKAS state (prototype) ***
+    self.blend_enabled = bool(self.CP.flags & ToyotaFlags.LTA_LKAS_BLEND.value)
+    self.blend_phase = BlendPhase.LTA
+    self.blend_demand_frames = 0
+    self.blend_calm_frames = 0
+    self.blend_phase_frames = 0
+    self.blend_winddown_frames = 0
+    self.blend_release_sent = False
+
     # *** start long control state ***
     self.long_pid = get_long_tune(self.CP, self.params)
     self.aego = FirstOrderFilter(0.0, 0.25, DT_CTRL * 3)
@@ -74,6 +99,74 @@ class CarController(CarControllerBase):
     self.secoc_lta_message_counter = 0
     self.secoc_acc_message_counter = 0
     self.secoc_prev_reset_counter = 0
+
+  def update_blend_phase(self, lat_active, demand_torque, CS):
+    """Advances the LTA/LKAS arbitration state machine, called once per 100Hz frame.
+
+    demand_torque is the unlimited torque request from the lateral controller, in units
+    of STEER_MAX. Small sustained demand runs on the LTA (angle) interface for precision;
+    sustained demand above the handoff threshold, or EPS-applied torque near the blend-mode
+    safety bound, hands off to the LKAS (torque) interface for authority.
+    """
+    p = self.params
+
+    if not lat_active:
+      # start the next engagement in the precision regime
+      self.blend_phase = BlendPhase.LTA
+      self.blend_demand_frames = 0
+      self.blend_calm_frames = 0
+      self.blend_phase_frames = 0
+      self.blend_winddown_frames = 0
+      self.blend_release_sent = False
+      return
+
+    self.blend_phase_frames += 1
+    eps_torque = abs(CS.out.steeringTorqueEps)
+
+    # demand persistence counters with hysteresis between the two thresholds
+    if abs(demand_torque) >= p.BLEND_TO_LKAS_TORQUE or eps_torque >= p.BLEND_LTA_MAX_EPS_TORQUE:
+      self.blend_demand_frames += 1
+    else:
+      self.blend_demand_frames = 0
+
+    if abs(demand_torque) <= p.BLEND_TO_LTA_TORQUE and eps_torque < p.BLEND_LTA_MAX_EPS_TORQUE:
+      self.blend_calm_frames += 1
+    else:
+      self.blend_calm_frames = 0
+
+    if self.blend_phase == BlendPhase.LTA:
+      # handing off to the higher-authority interface is never delayed by a dwell time
+      if self.blend_demand_frames >= p.BLEND_DEMAND_FRAMES:
+        self.blend_phase = BlendPhase.LTA_WINDDOWN
+        self.blend_winddown_frames = 0
+
+    elif self.blend_phase == BlendPhase.LTA_WINDDOWN:
+      # TORQUE_WIND_DOWN=0 ramps EPS torque out at ~1500 units/s; wait for it before releasing
+      self.blend_winddown_frames += 1
+      if eps_torque <= p.BLEND_WINDDOWN_EPS_TORQUE or self.blend_winddown_frames >= p.BLEND_WINDDOWN_TIMEOUT:
+        self.blend_phase = BlendPhase.LTA_RELEASE
+        self.blend_release_sent = False
+
+    elif self.blend_phase == BlendPhase.LTA_RELEASE:
+      # LKAS torque may only start one frame after a STEER_REQUEST=0 LTA message went out,
+      # since panda safety processes the LKAS message before the LTA message within a frame
+      if self.blend_release_sent:
+        self.blend_phase = BlendPhase.LKAS
+        self.blend_phase_frames = 0
+
+    elif self.blend_phase == BlendPhase.LKAS:
+      if self.blend_calm_frames >= p.BLEND_CALM_FRAMES and self.blend_phase_frames >= p.BLEND_MIN_LKAS_FRAMES:
+        self.blend_phase = BlendPhase.LKAS_WINDDOWN
+
+    elif self.blend_phase == BlendPhase.LKAS_WINDDOWN:
+      # abort the handback if demand returns while ramping down
+      if self.blend_calm_frames == 0:
+        self.blend_phase = BlendPhase.LKAS
+      elif self.last_torque == 0:
+        # torque interface fully released; LTA request turns on this frame. In-frame
+        # message order (LKAS before LTA) makes panda see the release first
+        self.blend_phase = BlendPhase.LTA
+        self.blend_phase_frames = 0
 
   def update(self, CC, CS, now_nanos):
     actuators = CC.actuators
@@ -112,19 +205,38 @@ class CarController(CarControllerBase):
     if not lat_active:
       apply_torque = 0
 
+    # *** blended LTA/LKAS arbitration ***
+    lta_owns_actuation = False
+    if self.blend_enabled:
+      self.update_blend_phase(lat_active, new_torque, CS)
+      lta_owns_actuation = self.blend_phase in (BlendPhase.LTA, BlendPhase.LTA_WINDDOWN)
+
+      if self.blend_phase == BlendPhase.LKAS_WINDDOWN:
+        # ramp the torque interface to zero before handing back to LTA
+        apply_torque = apply_meas_steer_torque_limits(0, self.last_torque, CS.out.steeringTorqueEps, self.params)
+      elif self.blend_phase != BlendPhase.LKAS:
+        # the torque interface must be fully silent while the angle interface owns actuation
+        apply_torque = 0
+        apply_steer_req = False
+
     # *** steer angle ***
-    if self.CP.steerControlType == SteerControlType.angle:
-      # If using LTA control, disable LKA and set steering angle command
-      apply_torque = 0
-      apply_steer_req = False
+    if self.CP.steerControlType == SteerControlType.angle or self.blend_enabled:
+      if self.CP.steerControlType == SteerControlType.angle:
+        # If using LTA control, disable LKA and set steering angle command
+        apply_torque = 0
+        apply_steer_req = False
       if self.frame % 2 == 0:
         # EPS uses the torque sensor angle to control with, offset to compensate
         apply_angle = actuators.steeringAngleDeg + CS.out.steeringAngleOffsetDeg
 
+        # in blend mode the angle command only tracks the desired angle while LTA owns
+        # actuation; otherwise it tracks the measured angle, as safety requires when inactive
+        angle_control_active = CC.latActive if not self.blend_enabled else (CC.latActive and lta_owns_actuation)
+
         # Angular rate limit based on speed
         self.last_angle = apply_std_steer_angle_limits(apply_angle, self.last_angle, CS.out.vEgoRaw,
                                                        CS.out.steeringAngleDeg + CS.out.steeringAngleOffsetDeg,
-                                                       CC.latActive, self.params.ANGLE_LIMITS)
+                                                       angle_control_active, self.params.ANGLE_LIMITS)
 
     self.last_torque = apply_torque
 
@@ -144,15 +256,31 @@ class CarController(CarControllerBase):
 
     # STEERING_LTA does not seem to allow more rate by sending faster, and may wind up easier
     if self.frame % 2 == 0 and self.CP.carFingerprint in TSS2_CAR:
-      lta_active = lat_active and self.CP.steerControlType == SteerControlType.angle
+      if self.blend_enabled:
+        lta_active = lat_active and lta_owns_actuation
+        # blend-mode safety blocks TORQUE_WIND_DOWN=100 above 700 units of EPS torque; keep margin
+        max_lta_eps_torque = self.params.BLEND_LTA_MAX_EPS_TORQUE
+        # the EPS acts on the LTA message per its SETME_X3 control-type semantics
+        lta_control_type = SteerControlType.angle
+      else:
+        lta_active = lat_active and self.CP.steerControlType == SteerControlType.angle
+        max_lta_eps_torque = self.params.STEER_MAX
+        lta_control_type = self.CP.steerControlType
       # cut steering torque with TORQUE_WIND_DOWN when either EPS torque or driver torque is above
       # the threshold, to limit max lateral acceleration and for driver torque blending respectively.
-      full_torque_condition = (abs(CS.out.steeringTorqueEps) < self.params.STEER_MAX and
+      full_torque_condition = (abs(CS.out.steeringTorqueEps) < max_lta_eps_torque and
                                abs(CS.out.steeringTorque) < self.params.MAX_LTA_DRIVER_TORQUE_ALLOWANCE)
 
       # TORQUE_WIND_DOWN at 0 ramps down torque at roughly the max down rate of 1500 units/sec
       torque_wind_down = 100 if lta_active and full_torque_condition else 0
-      can_sends.append(toyotacan.create_lta_steer_command(self.packer, self.CP.steerControlType, self.last_angle,
+      if self.blend_enabled and self.blend_phase == BlendPhase.LTA_WINDDOWN:
+        # ramp EPS torque out ahead of the handoff to LKAS
+        torque_wind_down = 0
+      if self.blend_enabled and self.blend_phase == BlendPhase.LTA_RELEASE:
+        # this frame's message carries STEER_REQUEST=0; LKAS may actuate starting next frame
+        self.blend_release_sent = True
+
+      can_sends.append(toyotacan.create_lta_steer_command(self.packer, lta_control_type, self.last_angle,
                                                           lta_active, self.frame // 2, torque_wind_down))
 
       if self.CP.flags & ToyotaFlags.SECOC.value:

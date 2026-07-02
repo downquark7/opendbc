@@ -1,9 +1,11 @@
+import os
+
 from opendbc.car import Bus, structs, get_safety_config, uds
 from opendbc.car.toyota.carstate import CarState
 from opendbc.car.toyota.carcontroller import CarController
 from opendbc.car.toyota.radar_interface import RadarInterface
 from opendbc.car.toyota.values import Ecu, CAR, DBC, ToyotaFlags, CarControllerParams, TSS2_CAR, RADAR_ACC_CAR, MIN_ACC_SPEED, \
-                                                  EPS_SCALE, ANGLE_CONTROL_CAR, ToyotaSafetyFlags
+                                                  EPS_SCALE, ANGLE_CONTROL_CAR, BLEND_STEER_CAR, ToyotaSafetyFlags
 from opendbc.car.disable_ecu import disable_ecu
 from opendbc.car.interfaces import CarInterfaceBase
 
@@ -48,6 +50,12 @@ class CarInterface(CarInterfaceBase):
 
       ret.steerActuatorDelay = 0.12  # Default delay, Prius has larger delay
       ret.steerLimitTimer = 0.4
+
+      # Prototype: blended LTA/LKAS steering. Keeps torque lateral tuning; the car
+      # controller arbitrates between the two interfaces. Opt-in via env var
+      if (candidate in BLEND_STEER_CAR) and (os.environ.get("TOYOTA_LTA_LKAS_BLEND") == "1"):
+        ret.flags |= ToyotaFlags.LTA_LKAS_BLEND.value
+        ret.safetyConfigs[0].safetyParam |= ToyotaSafetyFlags.LTA_BLEND.value
 
     stop_and_go = candidate in TSS2_CAR
 
