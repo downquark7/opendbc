@@ -268,6 +268,112 @@ class TestToyotaSafetyAngle(TestToyotaSafetyBase, common.AngleSteeringSafetyTest
         self.assertEqual(self.safety.get_angle_meas_max(), 0)
 
 
+class TestToyotaSafetyBlend(TestToyotaSafetyAngle, common.MotorTorqueSteeringSafetyTest, common.SteerRequestCutSafetyTest):
+  """
+  Blended LTA/LKAS steering mode (prototype): both steering interfaces are live, each
+  covered by its full standalone rule set, plus mutual exclusion of actuation between
+  them and a tighter EPS torque wind-down threshold for the angle interface.
+  """
+
+  # Torque control limits, identical to TestToyotaSafetyTorque
+  MAX_RATE_UP = 15
+  MAX_RATE_DOWN = 25
+  MAX_TORQUE_LOOKUP = [0], [1500]
+  MAX_RT_DELTA = 450
+  MAX_TORQUE_ERROR = 350
+  TORQUE_MEAS_TOLERANCE = 1  # toyota safety adds one to be conservative for rounding
+
+  # Safety around steering req bit
+  MIN_VALID_STEERING_FRAMES = 17
+  MAX_INVALID_STEERING_FRAMES = 1
+
+  # Tighter cap on EPS-applied torque for the angle interface in blend mode
+  MAX_MEAS_TORQUE = 700
+
+  def setUp(self):
+    self.packer = CANPackerSafety("toyota_nodsu_pt_generated")
+    self.safety = libsafety_py.libsafety
+    self.safety.set_safety_hooks(CarParams.SafetyModel.toyota, self.EPS_SCALE | ToyotaSafetyFlags.LTA_BLEND)
+    self.safety.init_tests()
+
+  # LKA torque actuation is allowed in blend mode and covered by MotorTorqueSteeringSafetyTest.
+  # Exclusion against LTA is covered by test_blend_mutual_exclusion
+  def test_lka_steer_cmd(self):
+    pass
+
+  def test_blend_mutual_exclusion(self):
+    """Only one steering interface may actuate at a time. Actuation state is tracked
+       from messages that made it to the bus, and a handoff requires one zero-actuation
+       message from the releasing interface first."""
+    self.safety.set_controls_allowed(True)
+    self._reset_angle_measurement(0)
+    self._set_prev_desired_angle(0)
+
+    # LTA actuating: any LKA actuation is blocked, zero-actuation LKA is allowed
+    self.assertTrue(self._tx(self._lta_msg(1, 1, 0, 100)))
+    self.assertFalse(self._tx(self._torque_cmd_msg(10, steer_req=1)))
+    self.assertFalse(self._tx(self._torque_cmd_msg(10, steer_req=0)))
+    self.assertFalse(self._tx(self._torque_cmd_msg(0, steer_req=1)))
+    self.assertTrue(self._tx(self._torque_cmd_msg(0, steer_req=0)))
+
+    # LTA releases, LKA may now actuate (within its normal rate limits)
+    self.assertTrue(self._tx(self._lta_msg(0, 0, 0, 0)))
+    self.assertTrue(self._tx(self._torque_cmd_msg(10, steer_req=1)))
+
+    # LKA actuating: any LTA actuation is blocked, zero-actuation LTA is allowed
+    self.assertFalse(self._tx(self._lta_msg(1, 1, 0, 100)))
+    self.assertTrue(self._tx(self._lta_msg(0, 0, 0, 0)))
+
+    # LKA releases, LTA may now actuate
+    self.assertTrue(self._tx(self._torque_cmd_msg(0, steer_req=0)))
+    self.assertTrue(self._tx(self._lta_msg(1, 1, 0, 100)))
+
+  def test_blend_no_torque_state_ratchet_when_blocked(self):
+    """LKA messages blocked by the exclusion rule must not advance the torque rate
+       limit state: after an LTA->LKA handoff the torque ramp still starts at zero."""
+    self.safety.set_controls_allowed(True)
+    self._reset_angle_measurement(0)
+    self._set_prev_desired_angle(0)
+
+    self.assertTrue(self._tx(self._lta_msg(1, 1, 0, 100)))
+    for _ in range(100):
+      self.assertFalse(self._tx(self._torque_cmd_msg(self.MAX_TORQUE_LOOKUP[1][0], steer_req=1)))
+
+    self.assertTrue(self._tx(self._lta_msg(0, 0, 0, 0)))
+    # full torque still violates the rate limit from zero after the handoff
+    self.assertFalse(self._tx(self._torque_cmd_msg(self.MAX_TORQUE_LOOKUP[1][0], steer_req=1)))
+    self.assertTrue(self._tx(self._torque_cmd_msg(self.MAX_RATE_UP, steer_req=1)))
+
+  def test_blend_no_angle_state_ratchet_when_blocked(self):
+    """LTA messages blocked by the exclusion rule must not advance the desired angle
+       state: after an LKA->LTA handoff the angle rate limit still anchors at the
+       last transmitted angle."""
+    self.safety.set_controls_allowed(True)
+    self._reset_angle_measurement(0)
+    self._set_prev_desired_angle(0)
+
+    self.assertTrue(self._tx(self._torque_cmd_msg(10, steer_req=1)))
+    for _ in range(100):
+      self.assertFalse(self._tx(self._lta_msg(1, 1, 45, 100)))
+
+    self.assertTrue(self._tx(self._torque_cmd_msg(0, steer_req=0)))
+    # a large angle jump still violates the rate limit anchored at zero after the handoff
+    self.assertFalse(self._tx(self._lta_msg(1, 1, 45, 100)))
+    self.assertTrue(self._tx(self._lta_msg(1, 1, 0, 100)))
+
+  def test_blend_flag_ignored_with_lta(self):
+    """The blend param must not weaken pure LTA mode: with both flags set, plain LTA
+       semantics win and LKA actuation stays blocked."""
+    self.safety.set_safety_hooks(CarParams.SafetyModel.toyota,
+                                 self.EPS_SCALE | ToyotaSafetyFlags.LTA | ToyotaSafetyFlags.LTA_BLEND)
+    self.safety.init_tests()
+    self.safety.set_controls_allowed(True)
+
+    self.assertFalse(self._tx(self._torque_cmd_msg(10, steer_req=1)))
+    self.assertFalse(self._tx(self._torque_cmd_msg(0, steer_req=1)))
+    self.assertTrue(self._tx(self._torque_cmd_msg(0, steer_req=0)))
+
+
 class TestToyotaAltBrakeSafety(TestToyotaSafetyTorque):
 
   def setUp(self):

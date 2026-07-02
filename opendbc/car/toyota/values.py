@@ -35,6 +35,20 @@ class CarControllerParams:
 
   MAX_LTA_DRIVER_TORQUE_ALLOWANCE = 150  # slightly above steering pressed allows some resistance when changing lanes
 
+  # Blended LTA/LKAS control (prototype). The LTA (angle) interface is used as a
+  # low-authority precision regime and the LKAS (torque) interface handles high-torque
+  # maneuvers. Panda safety enforces mutual exclusion between the interfaces and blocks
+  # TORQUE_WIND_DOWN=100 above 700 units of EPS-applied torque in blend mode; the
+  # thresholds below keep margin to that bound so normal operation never hits it.
+  BLEND_LTA_MAX_EPS_TORQUE = 600   # wind down torque and hand off above this EPS-applied torque
+  BLEND_TO_LKAS_TORQUE = 600       # sustained demand above this hands off to LKAS, in units of STEER_MAX
+  BLEND_TO_LTA_TORQUE = 300        # sustained demand below this hands back to LTA
+  BLEND_DEMAND_FRAMES = 10         # 100Hz frames of sustained demand before LTA -> LKAS handoff
+  BLEND_CALM_FRAMES = 200          # 100Hz frames of low demand before LKAS -> LTA handback
+  BLEND_MIN_LKAS_FRAMES = 100      # min frames in LKAS before a demand-based handback
+  BLEND_WINDDOWN_EPS_TORQUE = 150  # EPS-applied torque considered wound down for handoff
+  BLEND_WINDDOWN_TIMEOUT = 50      # max 100Hz frames winding down LTA torque before forcing release
+
   def __init__(self, CP):
     if CP.flags & ToyotaFlags.RAISED_ACCEL_LIMIT:
       self.ACCEL_MAX = 2.0
@@ -56,6 +70,8 @@ class ToyotaSafetyFlags(IntFlag):
   STOCK_LONGITUDINAL = (2 << 8)
   LTA = (4 << 8)
   SECOC = (8 << 8)
+  # blended LTA/LKAS steering (prototype, debug builds only)
+  LTA_BLEND = (16 << 8)
 
 
 class ToyotaFlags(IntFlag):
@@ -73,6 +89,8 @@ class ToyotaFlags(IntFlag):
   # these cars can utilize 2.0 m/s^2
   RAISED_ACCEL_LIMIT = 1024
   SECOC = 2048
+  # blended LTA/LKAS steering control (prototype, opt-in)
+  LTA_LKAS_BLEND = 4096
 
   # deprecated flags
   # these cars are speculated to allow stop and go when the DSU is unplugged
@@ -598,6 +616,9 @@ UNSUPPORTED_DSU_CAR = CAR.with_flags(ToyotaFlags.UNSUPPORTED_DSU)
 RADAR_ACC_CAR = CAR.with_flags(ToyotaFlags.RADAR_ACC)
 
 ANGLE_CONTROL_CAR = CAR.with_flags(ToyotaFlags.ANGLE_CONTROL)
+
+# cars validated for the blended LTA/LKAS prototype: TSS2 Corolla only for now
+BLEND_STEER_CAR = {CAR.TOYOTA_COROLLA_TSS2}
 
 SECOC_CAR = CAR.with_flags(ToyotaFlags.SECOC)
 

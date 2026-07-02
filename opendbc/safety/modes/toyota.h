@@ -60,7 +60,13 @@ static bool toyota_secoc = false;
 static bool toyota_alt_brake = false;
 static bool toyota_stock_longitudinal = false;
 static bool toyota_lta = false;
+static bool toyota_lta_blend = false;
 static int toyota_dbc_eps_torque_factor = 100;   // conversion factor for STEER_TORQUE_EPS in %: see dbc file
+
+// Blended LTA/LKAS mode: last actuation state that made it to the bus for each steering
+// interface, used to enforce that only one interface actuates at a time
+static bool toyota_blend_lka_actuation_last = false;
+static bool toyota_blend_lta_actuation_last = false;
 
 static uint32_t toyota_compute_checksum(const CANPacket_t *msg) {
   int len = GET_LEN(msg);
@@ -205,6 +211,10 @@ static bool toyota_tx_hook(const CANPacket_t *msg) {
 
   const int TOYOTA_LTA_MAX_MEAS_TORQUE = 1500;
   const int TOYOTA_LTA_MAX_DRIVER_TORQUE = 150;
+  // In blended LTA/LKAS mode, the angle interface is reserved for fine corrections: force a
+  // torque wind down at a much lower EPS-applied torque. Large demands must use the torque
+  // interface, which is bounded by TOYOTA_TORQUE_STEERING_LIMITS
+  const int TOYOTA_LTA_BLEND_MAX_MEAS_TORQUE = 700;
 
   // longitudinal limits
   const LongitudinalLimits TOYOTA_LONG_LIMITS = {
@@ -270,11 +280,15 @@ static bool toyota_tx_hook(const CANPacket_t *msg) {
       lta_angle = to_signed(lta_angle, 16);
 
       bool steer_control_enabled = lta_request || lta_request2;
-      if (!toyota_lta) {
+      if (!toyota_lta && !toyota_lta_blend) {
         // using torque (LKA), block LTA msgs with actuation requests
         if (steer_control_enabled || (lta_angle != 0) || (torque_wind_down != 0)) {
           tx = false;
         }
+      } else if (toyota_lta_blend && steer_control_enabled && toyota_blend_lka_actuation_last) {
+        // Blended mode: no angle actuation while the torque interface is actuating.
+        // Skip steer_angle_cmd_checks so a blocked message can't advance the desired angle state.
+        tx = false;
       } else {
         // check angle rate limits and inactive angle
         if (steer_angle_cmd_checks(lta_angle, steer_control_enabled, TOYOTA_ANGLE_STEERING_LIMITS)) {
@@ -305,6 +319,18 @@ static bool toyota_tx_hook(const CANPacket_t *msg) {
         if ((eps_torque > TOYOTA_LTA_MAX_MEAS_TORQUE) && (torque_wind_down != 0)) {
           tx = false;
         }
+
+        if (toyota_lta_blend) {
+          // tighter EPS-applied torque cap for the angle interface in blended mode
+          if ((eps_torque > TOYOTA_LTA_BLEND_MAX_MEAS_TORQUE) && (torque_wind_down != 0)) {
+            tx = false;
+          }
+
+          // only track actuation state from messages that reach the bus
+          if (tx) {
+            toyota_blend_lta_actuation_last = steer_control_enabled;
+          }
+        }
       }
     }
 
@@ -327,14 +353,24 @@ static bool toyota_tx_hook(const CANPacket_t *msg) {
       int desired_torque = (msg->data[1] << 8) | msg->data[2];
       desired_torque = to_signed(desired_torque, 16);
       bool steer_req = GET_BIT(msg, 0U);
+      bool lka_actuation = (desired_torque != 0) || steer_req;
       // When using LTA (angle control), assert no actuation on LKA message
-      if (!toyota_lta) {
+      if (toyota_lta) {
+        if (lka_actuation) {
+          tx = false;
+        }
+      } else if (toyota_lta_blend && lka_actuation && toyota_blend_lta_actuation_last) {
+        // Blended mode: no torque actuation while the angle interface is actuating.
+        // Skip steer_torque_cmd_checks so a blocked message can't advance the rate limit state.
+        tx = false;
+      } else {
         if (steer_torque_cmd_checks(desired_torque, steer_req, TOYOTA_TORQUE_STEERING_LIMITS)) {
           tx = false;
         }
-      } else {
-        if ((desired_torque != 0) || steer_req) {
-          tx = false;
+
+        // only track actuation state from messages that reach the bus
+        if (toyota_lta_blend && tx) {
+          toyota_blend_lka_actuation_last = lka_actuation;
         }
       }
     }
@@ -387,6 +423,16 @@ static safety_config toyota_init(uint16_t param) {
   toyota_lta = GET_FLAG(param, TOYOTA_PARAM_LTA);
   toyota_dbc_eps_torque_factor = param & TOYOTA_EPS_FACTOR;
 
+  // Blended LTA/LKAS mode (prototype, debug builds only). Mutually exclusive with
+  // pure LTA mode and unsupported on SecOC platforms
+  toyota_lta_blend = false;
+#ifdef ALLOW_DEBUG
+  const uint32_t TOYOTA_PARAM_LTA_BLEND = 16UL << TOYOTA_PARAM_OFFSET;
+  toyota_lta_blend = GET_FLAG(param, TOYOTA_PARAM_LTA_BLEND) && !toyota_lta && !toyota_secoc;
+#endif
+  toyota_blend_lka_actuation_last = false;
+  toyota_blend_lta_actuation_last = false;
+
   safety_config ret;
   if (toyota_secoc) {
     if (toyota_stock_longitudinal) {
@@ -408,7 +454,7 @@ static safety_config toyota_init(uint16_t param) {
     };
 
     SET_RX_CHECKS(toyota_secoc_rx_checks, ret);
-  } else if (toyota_lta) {
+  } else if (toyota_lta || toyota_lta_blend) {
     // Check the quality flag for angle measurement when using LTA, since it's not set on TSS-P cars
     static RxCheck toyota_lta_rx_checks[] = {
       TOYOTA_RX_CHECKS(true)
