@@ -7,13 +7,15 @@ from opendbc.car.nissan import nissancan
 from opendbc.car.nissan.values import CAR, CarControllerParams
 from opendbc.sunnypilot.car.nissan.nissancan_ext import create_cruise_throttle_msg
 from opendbc.car.common.filter_simple import FirstOrderFilter
+from opendbc.sunnypilot.car.nissan.icbm import IntelligentCruiseButtonManagementInterface
 
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
 
 
-class CarController(CarControllerBase):
+class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterface):
   def __init__(self, dbc_names, CP, CP_SP):
-    super().__init__(dbc_names, CP, CP_SP)
+    CarControllerBase.__init__(self, dbc_names, CP, CP_SP)
+    IntelligentCruiseButtonManagementInterface.__init__(self, CP, CP_SP)
     self.car_fingerprint = CP.carFingerprint
 
     self.angle_filter = FirstOrderFilter(0.0, 0.1, DT_CTRL)
@@ -50,10 +52,10 @@ class CarController(CarControllerBase):
         lkas_max_torque = CarControllerParams.LKAS_MAX_TORQUE
       else:
         # Scale max torque based on how much torque the driver is applying to the wheel.
-        # Start scaling torque at STEER_THRESHOLD down to 0.2. If we don't scale this low, EPS will temp fault from high driver and LKAS torque
-        lkas_max_torque = max(
-          CarControllerParams.LKAS_MIN_TORQUE,
-          CarControllerParams.LKAS_MAX_TORQUE - 0.6 * max(0, abs(CS.out.steeringTorque) - CarControllerParams.STEER_THRESHOLD),
+        # Scale torque down to a MIN of 0.5 (20% of full torque)
+        lkas_max_torque = max(CarControllerParams.MIN_TORQUE,
+          # Start scaling torque at STEER_THRESHOLD and scale down to MIN at 2Nm user torque
+          CarControllerParams.LKAS_MAX_TORQUE - (CarControllerParams.LKAS_MAX_TORQUE - CarControllerParams.MIN_TORQUE ) * max(0, abs(CS.out.steeringTorque) - CarControllerParams.STEER_THRESHOLD)
         )
 
     if self.CP.carFingerprint == CAR.NISSAN_ALTIMA and pcm_cancel_cmd:
@@ -61,7 +63,12 @@ class CarController(CarControllerBase):
 
     if self.CP.carFingerprint != CAR.NISSAN_ALTIMA and self.frame % 2 == 0:
       button = "CANCEL_BUTTON" if pcm_cancel_cmd else None
-      can_sends.append(create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, button))
+      icbm_msg = IntelligentCruiseButtonManagementInterface.update(self, CS, CC_SP, self.packer, self.frame, self.last_button_frame)
+
+      if icbm_msg:
+        can_sends.extend(icbm_msg)
+      else:
+        can_sends.append(create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, button))
 
     can_sends.append(nissancan.create_steering_control(
       self.packer, self.apply_angle_last, self.frame, CC.latActive, lkas_max_torque))

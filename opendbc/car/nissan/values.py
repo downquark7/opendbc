@@ -19,9 +19,9 @@ class CarControllerParams:
     ([0., 5., 15.], [5., 3.5, 0.4]),
   )
 
-  LKAS_MIN_TORQUE = 0.2             # Adequate torque when overriding without faulting
-  LKAS_MAX_TORQUE = 1               # A value of 1 is easy to overpower
-  STEER_THRESHOLD = 1.0
+  LKAS_MAX_TORQUE = 2.54               # This is the maximum torque
+  STEER_THRESHOLD = 1.0                # Max torque scales down at this user steer 
+  MIN_TORQUE = 0.5                     # Scales down to 0.5 (20% ish of max torque)
 
   def __init__(self, CP):
     pass
