@@ -64,8 +64,10 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
     if self.CP.carFingerprint != CAR.NISSAN_ALTIMA and self.frame % 2 == 0:
       button = "CANCEL_BUTTON" if pcm_cancel_cmd else None
       icbm_msg = IntelligentCruiseButtonManagementInterface.update(self, CS, CC_SP, self.packer, self.frame, self.last_button_frame)
-
-      if icbm_msg:
+      
+      if button:
+        can_sends.append(create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, button))
+      elif icbm_msg:
         can_sends.extend(icbm_msg)
       else:
         can_sends.append(create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, button))
