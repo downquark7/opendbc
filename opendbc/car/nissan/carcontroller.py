@@ -66,6 +66,7 @@ class CarController(CarControllerBase, IntelligentCruiseButtonManagementInterfac
       icbm_msg = IntelligentCruiseButtonManagementInterface.update(self, CS, CC_SP, self.packer, self.frame, self.last_button_frame)
       
       if button:
+        IntelligentCruiseButtonManagementInterface.clear_queue(self)
         can_sends.append(create_cruise_throttle_msg(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, self.frame, button))
       elif icbm_msg:
         can_sends.extend(icbm_msg)
